@@ -35,7 +35,7 @@ class PointCloudFilter:
         filtered_msg.fields = msg.fields.copy() if hasattr(msg, 'fields') else []
         filtered_msg.is_bigendian = msg.is_bigendian
         filtered_msg.point_step = msg.point_step
-        filtered_msg.row_step = msg.row_step * 4  # Aumenta row_step poiché saltiamo righe
+        filtered_msg.row_step = msg.row_step * 4  # Increase row_step because we are skipping rows
         filtered_msg.is_dense = msg.is_dense
         
         filtered_msg.data = filtered_data.reshape(-1).tobytes()
