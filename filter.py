@@ -1,6 +1,8 @@
 import numpy as np
 import rclpy
 from sensor_msgs.msg import PointCloud2
+import os
+import yaml
 
 
 class PointCloudFilter:
@@ -12,15 +14,24 @@ class PointCloudFilter:
             self.callback,
             10
         )
-        self.publisher = self.node.create_publisher(PointCloud2, '/lidar/filtered_pointcloud', 10)
+        self.publisher = self.node.create_publisher(PointCloud2, '/lidar/filtered', 10)
+        pkg_dir = os.path.dirname(os.path.abspath(__file__))
+        params_file = os.path.join(pkg_dir, 'params.yaml')    #If params.yaml is in the same directory as filter.py
+        if not os.path.exists(params_file):
+            raise FileNotFoundError(f"Il file YAML dei parametri non esiste: {params_file}")
+    
+        with open(params_file, 'r') as yaml_file:
+            params = yaml.safe_load(yaml_file)
+
+        filter_params = params.get('filter', {})
+        required_keys = ['vertical_zones']
+        for key in required_keys:
+            if key not in filter_params:
+                raise ValueError(f"Parametro '{key}' mancante nel file YAML.")
 
         # Define vertical zones as list of dictionaries:
         # Each zone has 'start' (0.0-1.0), 'end' (0.0-1.0), and 'downsample' factor (int)
-        self.vertical_zones = [
-            {'start': 0.0, 'end': 0.25, 'downsample': 4},  # Upper 25% of rows, keep 1/4
-            {'start': 0.25, 'end': 0.75, 'downsample': 1},  # Middle 50%, keep all
-            {'start': 0.75, 'end': 1.0, 'downsample': 4},  # Lower 25%, keep 1/4
-        ]
+        self.vertical_zones = filter_params['vertical_zones']
 
     def callback(self, msg):
         # Convert PointCloud2 data to numpy array
@@ -71,9 +82,9 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        if rclpy.ok():
-            pointcloud_filter.node.destroy_node()
-            rclpy.shutdown()
+        pointcloud_filter.node.destroy_node()
+        rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
