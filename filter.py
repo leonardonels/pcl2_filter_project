@@ -2,9 +2,10 @@ import numpy as np
 import rclpy
 from sensor_msgs.msg import PointCloud2
 
+
 class PointCloudFilter:
     def __init__(self):
-        self.node = rclpy.create_node('pointcloud_publisher')
+        self.node = rclpy.create_node('pointcloud_filter')
         self.subscriber = self.node.create_subscription(
             PointCloud2,
             '/lidar/points',
@@ -13,46 +14,54 @@ class PointCloudFilter:
         )
         self.publisher = self.node.create_publisher(PointCloud2, '/lidar/filtered_pointcloud', 10)
 
+        # Define vertical zones as list of dictionaries:
+        # Each zone has 'start' (0.0-1.0), 'end' (0.0-1.0), and 'downsample' factor (int)
+        self.vertical_zones = [
+            {'start': 0.0, 'end': 0.25, 'downsample': 4},  # Upper 25% of rows, keep 1/4
+            {'start': 0.25, 'end': 0.75, 'downsample': 1},  # Middle 50%, keep all
+            {'start': 0.75, 'end': 1.0, 'downsample': 4},  # Lower 25%, keep 1/4
+        ]
+
     def callback(self, msg):
-        # msg.data -> numpy array
+        # Convert PointCloud2 data to numpy array
         point_cloud_data = np.frombuffer(msg.data, dtype=np.float32)
-        
-        # Get pointcloud dimensions
-        height = msg.height
-        width = msg.width
-        
-        # Reshape to work with rows
+        height, width = msg.height, msg.width
         point_cloud_data = point_cloud_data.reshape(height, width, -1)
-        
-        # Define vertical intervals
-        upper_range = height // 3
-        lower_range = 2 * (height // 3)
-        
-        # Reduce density for low rays and high rays by 4 times
-        upper_filtered = point_cloud_data[:upper_range:4]
-        middle = point_cloud_data[upper_range:lower_range] # Kept default 
-        lower_filtered = point_cloud_data[lower_range::4]  
-        
-        # Connect all intervals
-        filtered_data = np.vstack((upper_filtered, middle, lower_filtered))
-        
-        # Compute the new height
-        new_height = upper_filtered.shape[0] + middle.shape[0] + lower_filtered.shape[0]
-        
-        # Create the new message
+
+        # Calculate rows to keep for each zone
+        selected_rows = []
+        for zone in self.vertical_zones:
+            start_row = int(zone['start'] * height)
+            end_row = int(zone['end'] * height)
+            end_row = min(end_row, height)  # Ensure within bounds
+            step = zone['downsample']
+            if step < 1:
+                step = 1  # Prevent invalid step
+            # Generate row indices for this zone
+            rows = np.arange(start_row, end_row, step)
+            selected_rows.append(rows)
+
+        # Combine and sort the selected rows
+        selected_rows = np.unique(np.concatenate(selected_rows))
+
+        # Filter the data
+        filtered_data = point_cloud_data[selected_rows, :, :]
+        new_height = filtered_data.shape[0]
+
+        # Create the filtered PointCloud2 message
         filtered_msg = PointCloud2()
         filtered_msg.header = msg.header
         filtered_msg.height = new_height
-        filtered_msg.width = width
+        filtered_msg.width = msg.width
         filtered_msg.fields = msg.fields.copy() if hasattr(msg, 'fields') else []
         filtered_msg.is_bigendian = msg.is_bigendian
         filtered_msg.point_step = msg.point_step
-        filtered_msg.row_step = msg.row_step * (height // new_height)  # Increase row_step because we are skipping rows
+        filtered_msg.row_step = msg.row_step * (msg.height // new_height) if new_height != 0 else 0
         filtered_msg.is_dense = msg.is_dense
-        
         filtered_msg.data = filtered_data.reshape(-1).tobytes()
-        
+
         self.publisher.publish(filtered_msg)
+
 
 def main(args=None):
     rclpy.init(args=args)
