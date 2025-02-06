@@ -1,5 +1,3 @@
-# PCL2_filter_project
-
 <div align="center">
     <h1>Simple ROS2 pointcloud vertical filter in python</h1>
 </div>
