@@ -38,7 +38,6 @@ class PointCloudFilter:
         filtered_msg.row_step = msg.row_step * 4  # Aumenta row_step poiché saltiamo righe
         filtered_msg.is_dense = msg.is_dense
         
-        # Converte l'array filtrato nuovamente in un buffer di byte
         filtered_msg.data = filtered_data.reshape(-1).tobytes()
         
         self.publisher.publish(filtered_msg)
