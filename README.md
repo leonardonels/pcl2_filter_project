@@ -14,7 +14,7 @@ sudo apt-get install python3-numpy -y
 ```
 ## :gear: How to build & Run
 ```commandline
-git clone https://github.com/leonardonels/PCL2_filter_project.git
+git clone https://github.com/leonardonels/pcl2_filter_project.git
 ```
 ```commandline
 python3 filter.py
